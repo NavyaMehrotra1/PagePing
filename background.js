@@ -43,3 +43,12 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
   })
 }); 
 
+function sendNotification(url) {
+  chrome.notifications.create({
+    type: "basic", 
+    title: "Page Changed!", 
+    message: `The page at ${url} has changed.`,
+    priority: 2
+  })
+}
+
