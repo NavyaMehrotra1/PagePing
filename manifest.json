@@ -4,13 +4,15 @@
   "version": "1.0",
   "description": "Chrome extension to notify of changes on websites (useful for job applications, price changes etc.)",
   "permissions": [
-  "storage",
-  "alarms",
-  "notifications",
-  "tabs",
-  "scripting"
-],
-"host_permissions": ["<all_urls>"],
+    "storage",
+    "alarms",
+    "notifications",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "action": {
     "default_popup": "popup.html"
   },
@@ -19,8 +21,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ]
     }
   ]
 }
