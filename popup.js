@@ -6,5 +6,12 @@ document.getElementById("trackPage").addEventListener("click", async () => {
         interval: 5, 
         lastSnapshot: null, 
         lastChecked: null
-    }
-})
+    }; 
+
+    chrome.storage.local.get({ trackedPages: []}, (data) => {
+        const trackedPages = data.trackedPages; 
+        trackedPages.push(trackedItem); 
+        chrome.storage.local.set({trackedPages}); 
+        document.getElementById("status").textContent = "Page is now being tracked"; 
+    }); 
+}); 

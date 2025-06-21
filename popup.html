@@ -1,14 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PagePing Popup</title>
-    <script src="popup.js" defer></script> 
+    <script src="popup.js" defer></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            width: 200px;
+        }
+
+        button {
+            margin-top: 10px;
+        }
+    </style>
 </head>
+
 <body>
-    <h3>Welcome to PagePing!</h3>
-    <button id = "trackPage">Track this page</button>
-    <button>Existing pages tracked<button> 
+    <h3>PagePing</h3>
+    <label for="interval">Interval (min):</label>
+    <select id="interval">
+        <option value="1">1</option>
+        <option value="5" selected>5</option>
+        <option value="15">15</option>
+    </select>
+    <br>
+    <button id="trackPage">Track This Page</button>
+    <p id="status"></p>
+    <script src="popup.js"></script>
 </body>
+
 </html>
