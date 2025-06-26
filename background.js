@@ -67,47 +67,104 @@ async function checkSiteDirectly(site) {
   }
 }
 
+async function checkSingleWebsite(site) {
+  try {
+    // For local files or when we need DOM parsing, use tabs approach
+    if (site.url.startsWith('file://') || site.selector) {
+      await checkSiteWithContentScript(site);
+    } else {
+      // For remote sites without selectors, try direct fetch first
+      try {
+        await checkSiteDirectly(site);
+      } catch (fetchError) {
+        // Fallback to content script approach
+        console.log(`Direct fetch failed for ${site.url}, trying content script...`);
+        await checkSiteWithContentScript(site);
+      }
+    }
+  } catch (error) {
+    console.error(`Error checking ${site.url}:`, error);
+  }
+}
+
+async function checkSiteDirectly(site) {
+  const response = await fetch(site.url, {
+    method: 'GET',
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Chrome Extension Website Monitor)'
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  
+  const html = await response.text();
+  
+  // Simple text extraction without DOM parsing
+  const textContent = html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  const currentHash = await hashContent(textContent);
+  
+  if (site.lastHash && site.lastHash !== currentHash) {
+    await sendNotification(site, textContent.substring(0, 200));
+  }
+  
+  await updateSiteHash(site.id, currentHash);
+}
+
 async function checkSiteWithContentScript(site) {
   try {
-    // Find or create a tab with the URL
-    const tabs = await chrome.tabs.query({ url: site.url });
+    // Check if there's already a tab with this URL
+    const existingTabs = await chrome.tabs.query({ url: site.url });
     let tabId;
+    let createdTab = false;
     
-    if (tabs.length > 0) {
-      tabId = tabs[0].id;
-      // Reload the tab to get fresh content
+    if (existingTabs.length > 0) {
+      tabId = existingTabs[0].id;
+      // Refresh the existing tab
       await chrome.tabs.reload(tabId);
-      // Wait for the page to load
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await waitForTabLoad(tabId);
     } else {
-      // Create a new tab (this will be visible to user)
-      const tab = await chrome.tabs.create({ url: site.url, active: false });
+      // Create a new background tab
+      const tab = await chrome.tabs.create({ 
+        url: site.url, 
+        active: false  // Don't focus the tab
+      });
       tabId = tab.id;
-      // Wait for the page to load
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      createdTab = true;
+      await waitForTabLoad(tabId);
     }
     
-    // Inject content script to extract content
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: tabId },
-      func: extractContent,
-      args: [site.selector]
+    // Extract content using content script
+    const response = await chrome.tabs.sendMessage(tabId, {
+      action: 'extractContent',
+      selector: site.selector
     });
     
-    if (results && results[0] && results[0].result) {
-      const currentContent = results[0].result;
+    if (response && response.success) {
+      const currentContent = response.content;
       const currentHash = await hashContent(currentContent);
       
       if (site.lastHash && site.lastHash !== currentHash) {
-        await sendNotification(site, currentContent);
+        await sendNotification(site, currentContent.substring(0, 200));
       }
       
       await updateSiteHash(site.id, currentHash);
     }
     
-    // Close the tab if we created it
-    if (tabs.length === 0) {
-      await chrome.tabs.remove(tabId);
+    // Close tab if we created it
+    if (createdTab) {
+      try {
+        await chrome.tabs.remove(tabId);
+      } catch (e) {
+        // Tab might already be closed
+      }
     }
     
   } catch (error) {
@@ -115,19 +172,23 @@ async function checkSiteWithContentScript(site) {
   }
 }
 
-// Function that runs in the webpage context
-function extractContent(selector) {
-  try {
-    if (selector) {
-      const element = document.querySelector(selector);
-      return element ? element.textContent.trim() : '';
-    } else {
-      // Get all visible text content
-      return document.body.textContent.trim();
-    }
-  } catch (error) {
-    return '';
-  }
+function waitForTabLoad(tabId) {
+  return new Promise((resolve) => {
+    const listener = (tabIdUpdated, changeInfo) => {
+      if (tabIdUpdated === tabId && changeInfo.status === 'complete') {
+        chrome.tabs.onUpdated.removeListener(listener);
+        // Add small delay to ensure content script is ready
+        setTimeout(resolve, 1000);
+      }
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+    
+    // Timeout fallback
+    setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    }, 10000);
+  });
 }
 
 async function hashContent(content) {
@@ -205,8 +266,39 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === 'removeSite') {
     removeSiteFromTracking(request.siteId);
     sendResponse({ success: true });
+  } else if (request.action === 'isPageTracked') {
+    checkIfPageTracked(request.url).then(isTracked => {
+      sendResponse({ isTracked });
+    });
+    return true; // Keep message channel open for async response
+  } else if (request.action === 'contentChanged') {
+    handleRealTimeChange(request.url, request.timestamp);
   }
+  return true;
 });
+
+async function checkIfPageTracked(url) {
+  const result = await chrome.storage.sync.get(['trackedSites']);
+  const trackedSites = result.trackedSites || [];
+  return trackedSites.some(site => site.url === url && site.active);
+}
+
+async function handleRealTimeChange(url, timestamp) {
+  // Handle real-time changes detected by content script
+  const result = await chrome.storage.sync.get(['trackedSites']);
+  const trackedSites = result.trackedSites || [];
+  const site = trackedSites.find(s => s.url === url);
+  
+  if (site) {
+    // Avoid duplicate notifications - only if enough time has passed
+    const timeSinceLastCheck = timestamp - (site.lastNotified || 0);
+    if (timeSinceLastCheck > 60000) { // 1 minute cooldown
+      await sendNotification(site, 'Real-time change detected');
+      site.lastNotified = timestamp;
+      await chrome.storage.sync.set({ trackedSites });
+    }
+  }
+}
 
 async function addSiteToTracking(siteData) {
   const result = await chrome.storage.sync.get(['trackedSites']);
