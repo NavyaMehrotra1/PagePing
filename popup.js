@@ -86,8 +86,13 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
     
-    trackedSitesDiv.innerHTML = sites.map(site => `
-      <div class="site-item">
+    trackedSitesDiv.innerHTML = '';
+    
+    sites.forEach(site => {
+      const siteElement = document.createElement('div');
+      siteElement.className = 'site-item';
+      
+      siteElement.innerHTML = `
         <div class="site-name">${escapeHtml(site.name)}</div>
         <div class="site-url">${escapeHtml(site.url)}</div>
         ${site.selector ? `<div class="help-text">Selector: ${escapeHtml(site.selector)}</div>` : ''}
@@ -96,33 +101,38 @@ document.addEventListener('DOMContentLoaded', function() {
           ${site.lastChecked ? ` | Last checked: ${new Date(site.lastChecked).toLocaleString()}` : ' | Not checked yet'}
         </div>
         <div class="site-controls">
-          <button class="btn btn-secondary" onclick="visitSite('${escapeHtml(site.url)}')">Visit</button>
-          <button class="btn btn-danger" onclick="removeSite('${site.id}')">Remove</button>
+          <button class="btn btn-secondary visit-btn">Visit</button>
+          <button class="btn btn-danger remove-btn">Remove</button>
         </div>
-      </div>
-    `).join('');
-  }
-  
-  // Make functions globally accessible for inline handlers
-  window.visitSite = function(url) {
-    chrome.tabs.create({ url: url });
-  };
-  
-  window.removeSite = function(siteId) {
-    if (confirm('Are you sure you want to remove this site from monitoring?')) {
-      chrome.runtime.sendMessage({
-        action: 'removeSite',
-        siteId: siteId
-      }, function(response) {
-        if (response && response.success) {
-          showStatus('Site removed', 'success');
-          loadTrackedSites();
-        } else {
-          showStatus('Failed to remove site', 'error');
+      `;
+      
+      // Add event listeners to buttons
+      const visitBtn = siteElement.querySelector('.visit-btn');
+      const removeBtn = siteElement.querySelector('.remove-btn');
+      
+      visitBtn.addEventListener('click', () => {
+        chrome.tabs.create({ url: site.url });
+      });
+      
+      removeBtn.addEventListener('click', () => {
+        if (confirm('Are you sure you want to remove this site from monitoring?')) {
+          chrome.runtime.sendMessage({
+            action: 'removeSite',
+            siteId: site.id
+          }, function(response) {
+            if (response && response.success) {
+              showStatus('Site removed', 'success');
+              loadTrackedSites();
+            } else {
+              showStatus('Failed to remove site', 'error');
+            }
+          });
         }
       });
-    }
-  };
+      
+      trackedSitesDiv.appendChild(siteElement);
+    });
+  }
   
   function clearForm() {
     siteNameInput.value = '';
