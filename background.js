@@ -29,37 +29,104 @@ async function checkAllWebsites() {
 
 async function checkSingleWebsite(site) {
   try {
-    // Fetch the website content
+    // For local files or sites that need DOM parsing, use content script injection
+    if (site.url.startsWith('file://') || site.selector) {
+      await checkSiteWithContentScript(site);
+    } else {
+      // For simple HTML fetching without selectors
+      await checkSiteDirectly(site);
+    }
+  } catch (error) {
+    console.error(`Error checking ${site.url}:`, error);
+  }
+}
+
+async function checkSiteDirectly(site) {
+  try {
     const response = await fetch(site.url);
     const html = await response.text();
     
-    // Extract relevant content based on selector
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
+    // Simple text extraction without DOM parsing
+    // Remove HTML tags using regex (basic approach)
+    const textContent = html
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
     
-    let currentContent;
-    if (site.selector) {
-      const element = doc.querySelector(site.selector);
-      currentContent = element ? element.textContent.trim() : '';
-    } else {
-      // Default: check entire body text
-      currentContent = doc.body.textContent.trim();
-    }
+    const currentHash = await hashContent(textContent);
     
-    // Create a simple hash of the content
-    const currentHash = await hashContent(currentContent);
-    
-    // Compare with stored hash
     if (site.lastHash && site.lastHash !== currentHash) {
-      // Content changed - send notification
-      await sendNotification(site, currentContent);
+      await sendNotification(site, textContent.substring(0, 200));
     }
     
-    // Update stored hash
     await updateSiteHash(site.id, currentHash);
+  } catch (error) {
+    console.error(`Error fetching ${site.url}:`, error);
+  }
+}
+
+async function checkSiteWithContentScript(site) {
+  try {
+    // Find or create a tab with the URL
+    const tabs = await chrome.tabs.query({ url: site.url });
+    let tabId;
+    
+    if (tabs.length > 0) {
+      tabId = tabs[0].id;
+      // Reload the tab to get fresh content
+      await chrome.tabs.reload(tabId);
+      // Wait for the page to load
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    } else {
+      // Create a new tab (this will be visible to user)
+      const tab = await chrome.tabs.create({ url: site.url, active: false });
+      tabId = tab.id;
+      // Wait for the page to load
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+    
+    // Inject content script to extract content
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tabId },
+      func: extractContent,
+      args: [site.selector]
+    });
+    
+    if (results && results[0] && results[0].result) {
+      const currentContent = results[0].result;
+      const currentHash = await hashContent(currentContent);
+      
+      if (site.lastHash && site.lastHash !== currentHash) {
+        await sendNotification(site, currentContent);
+      }
+      
+      await updateSiteHash(site.id, currentHash);
+    }
+    
+    // Close the tab if we created it
+    if (tabs.length === 0) {
+      await chrome.tabs.remove(tabId);
+    }
     
   } catch (error) {
-    console.error(`Error checking ${site.url}:`, error);
+    console.error(`Error checking with content script ${site.url}:`, error);
+  }
+}
+
+// Function that runs in the webpage context
+function extractContent(selector) {
+  try {
+    if (selector) {
+      const element = document.querySelector(selector);
+      return element ? element.textContent.trim() : '';
+    } else {
+      // Get all visible text content
+      return document.body.textContent.trim();
+    }
+  } catch (error) {
+    return '';
   }
 }
 
