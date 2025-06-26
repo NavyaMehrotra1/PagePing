@@ -1,4 +1,5 @@
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log("Alarm triggered for:", alarm.name);
   if (message.action === "startTracking") {
     // create an alarm for this url 
     scheduleAlarmForPage(message.url); 
