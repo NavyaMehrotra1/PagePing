@@ -1,35 +1,185 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PagePing Popup</title>
-    <script src="popup.js" defer></script>
-    <style>
-        body {
-            font-family: sans-serif;
-            width: 200px;
-        }
-
-        button {
-            margin-top: 10px;
-        }
-    </style>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 350px;
+      padding: 15px;
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+    }
+    
+    h2 {
+      margin: 0 0 15px 0;
+      color: #1a73e8;
+      font-size: 18px;
+    }
+    
+    .add-site-form {
+      border: 1px solid #dadce0;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+      background: #f8f9fa;
+    }
+    
+    .form-group {
+      margin-bottom: 10px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    
+    input[type="text"], input[type="url"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #dadce0;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    
+    input[type="text"]:focus, input[type="url"]:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+    }
+    
+    .btn {
+      background: #1a73e8;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    .btn:hover {
+      background: #1557b0;
+    }
+    
+    .btn-secondary {
+      background: #5f6368;
+    }
+    
+    .btn-secondary:hover {
+      background: #3c4043;
+    }
+    
+    .btn-danger {
+      background: #d93025;
+    }
+    
+    .btn-danger:hover {
+      background: #b52d20;
+    }
+    
+    .tracked-sites {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    
+    .site-item {
+      border: 1px solid #dadce0;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 8px;
+      background: white;
+    }
+    
+    .site-name {
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    
+    .site-url {
+      color: #5f6368;
+      font-size: 12px;
+      margin-bottom: 8px;
+      word-break: break-all;
+    }
+    
+    .site-controls {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .help-text {
+      font-size: 12px;
+      color: #5f6368;
+      margin-top: 5px;
+    }
+    
+    .status {
+      padding: 8px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+      text-align: center;
+    }
+    
+    .status.success {
+      background: #e8f5e8;
+      color: #137333;
+      border: 1px solid #81c995;
+    }
+    
+    .status.error {
+      background: #fce8e6;
+      color: #d93025;
+      border: 1px solid #f28b82;
+    }
+    
+    .quick-add {
+      margin-bottom: 10px;
+    }
+    
+    #quickAddCurrentSite {
+      width: 100%;
+    }
+  </style>
 </head>
-
 <body>
-    <h3>PagePing</h3>
-    <label for="interval">Interval (min):</label>
-    <select id="interval">
-        <option value="1">1</option>
-        <option value="5" selected>5</option>
-        <option value="15">15</option>
-    </select>
-    <br>
-    <button id="trackPage">Track This Page</button>
-    <p id="status"></p>
-    <script src="popup.js"></script>
-</body>
+  <h2>Website Monitor</h2>
+  
+  <div id="status" class="status" style="display: none;"></div>
+  
+  <div class="quick-add">
+    <button id="quickAddCurrentSite" class="btn">Add Current Page</button>
+  </div>
+  
+  <div class="add-site-form">
+    <div class="form-group">
+      <label for="siteName">Site Name (optional):</label>
+      <input type="text" id="siteName" placeholder="e.g., Job Board">
+    </div>
+    
+    <div class="form-group">
+      <label for="siteUrl">URL:</label>
+      <input type="url" id="siteUrl" placeholder="https://example.com/jobs" required>
+    </div>
+    
+    <div class="form-group">
+      <label for="siteSelector">CSS Selector (optional):</label>
+      <input type="text" id="siteSelector" placeholder="e.g., .job-listings">
+      <div class="help-text">Leave empty to monitor entire page. Use CSS selectors to monitor specific sections.</div>
+    </div>
+    
+    <button id="addSite" class="btn">Add Site</button>
+  </div>
+  
+  <h3>Tracked Sites (<span id="siteCount">0</span>):</h3>
+  <div id="trackedSites" class="tracked-sites">
+    <div style="text-align: center; color: #5f6368; padding: 20px;">
+      No sites being tracked yet.
+    </div>
+  </div>
 
+  <script src="popup.js"></script>
+</body>
 </html>
